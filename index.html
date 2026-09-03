@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drone Simulator</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #07111f;
+  color: white;
+  overflow: hidden;
+}
+
+header {
+  height: 60px;
+  background: #101d30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  border-bottom: 1px solid #29405d;
+}
+
+h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.status {
+  background: #18304b;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #8dccff;
+}
+
+main {
+  height: calc(100vh - 60px);
+  display: grid;
+  grid-template-columns: 250px 1fr 250px;
+  gap: 12px;
+  padding: 12px;
+}
+
+.panel {
+  background: #101d30;
+  border: 1px solid #29405d;
+  border-radius: 15px;
+  padding: 15px;
+}
+
+h2 {
+  font-size: 14px;
+  color: #a9c9e8;
+  margin-top: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  margin: 12px 0 5px;
+  font-size: 13px;
+}
+
+.value {
+  color: #86d0ff;
+  font-family: monospace;
+}
+
+.bar {
+  height: 12px;
+  background: #1d2d43;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  width: 0%;
+  background: #62baff;
+}
+
+.center {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+
+  background-image:
+    linear-gradient(#18304a 1px, transparent 1px),
+    linear-gradient(90deg, #18304a 1px, transparent 1px);
+
+  background-size: 40px 40px;
+}
+
+.controls {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  z-index: 10;
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-right: 6px;
+  background: #28506f;
+  color: white;
+  font-weight: bold;
+}
+
+button:active {
+  transform: scale(.97);
+}
+
+#armButton {
+  background: #27724e;
+}
+
+#armButton.armed {
+  background: #a64e38;
+}
+
+/* Virtual drone */
+
+.drone {
+  position: relative;
+  width: 220px;
+  height: 150px;
+  z-index: 3;
+  transition: transform .08s linear;
+}
+
+.body {
+  position: absolute;
+  left: 70px;
+  top: 52px;
+  width: 80px;
+  height: 45px;
+  background: #304a66;
+  border: 2px solid #82b5dd;
+  border-radius: 18px;
+}
+
+.arm {
+  position: absolute;
+  width: 160px;
+  height: 10px;
+  left: 30px;
+  top: 70px;
+  background: #526f8e;
+  border-radius: 10px;
+}
+
+.rotor {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border: 2px dashed #75bceb;
+  border-radius: 50%;
+}
+
+.r1 {
+  left: 0;
+  top: 25px;
+}
+
+.r2 {
+  right: 0;
+  top: 25px;
+}
+
+.r3 {
+  left: 0;
+  bottom: 8px;
+}
+
+.r4 {
+  right: 0;
+  bottom: 8px;
+}
+
+.centerDot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #9bddff;
+  left: 106px;
+  top: 70px;
+}
+
+/* Joysticks */
+
+.joysticks {
+  position: absolute;
+  bottom: 15px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  justify-content: space-between;
+  z-index: 10;
+}
+
+.stickArea {
+  text-align: center;
+}
+
+.stick {
+  width: 125px;
+  height: 125px;
+  background: #172940;
+  border: 2px solid #45637f;
+  border-radius: 50%;
+  position: relative;
+  touch-action: none;
+}
+
+.knob {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  left: 37px;
+  top: 37px;
+  background: #76c2ff;
+  border: 3px solid #d8f1ff;
+  border-radius: 50%;
+  box-shadow: 0 5px 15px #0009;
+}
+
+.label {
+  font-size: 11px;
+  color: #8da7c2;
+  margin-top: 5px;
+}
+
+/* Mobile */
+
+@media(max-width:850px) {
+
+  main {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    display: none;
+  }
+
+  .center {
+    height: calc(100vh - 84px);
+  }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>🚁 Drone Flight Simulator</h1>
+  <div class="status" id="status">SIMULATION ONLY</div>
+</header>
+
+<main>
+
+<!-- IMU PANEL -->
+
+<section class="panel">
+
+<h2>Virtual IMU</h2>
+
+<div class="row">
+  <span>Roll</span>
+  <span class="value" id="roll">0°</span>
+</div>
+
+<div class="bar">
+  <div class="fill" id="rollBar"></div>
+</div>
+
+<div class="row">
+  <span>Pitch</span>
+  <span class="value" id="pitch">0°</span>
+</div>
+
+<div class="bar">
+  <div class="fill" id="pitchBar"></div>
+</div>
+
+<div class="row">
+  <span>Yaw</span>
+  <span class="value" id="yaw">0°</span>
+</div>
+
+<div class="bar">
+  <div class="fill" id="yawBar"></div>
+</div>
+
+<div class="row">
+  <span>Throttle</span>
+  <span class="value" id="throttle">0%</span>
+</div>
+
+<div class="bar">
+  <div class="fill" id="throttleBar"></div>
+</div>
+
+</section>
+
+
+<!-- SIMULATOR -->
+
+<section class="panel center">
+
+<div class="grid"></div>
+
+<div class="controls">
+
+<button id="armButton">
+ARM SIMULATION
+</button>
+
+<button id="resetButton">
+RESET
+</button>
+
+</div>
+
+
+<div class="drone" id="drone">
+
+<div class="arm"></div>
+
+<div class="body"></div>
+
+<div class="rotor r1"></div>
+<div class="rotor r2"></div>
+<div class="rotor r3"></div>
+<div class="rotor r4"></div>
+
+<div class="centerDot"></div>
+
+</div>
+
+
+<div class="joysticks">
+
+<div class="stickArea">
+
+<div class="stick" id="leftStick">
+
+<div class="knob" id="leftKnob"></div>
+
+</div>
+
+<div class="label">
+THROTTLE / YAW
+</div>
+
+</div>
+
+
+<div class="stickArea">
+
+<div class="stick" id="rightStick">
+
+<div class="knob" id="rightKnob"></div>
+
+</div>
+
+<div class="label">
+PITCH / ROLL
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- MOTOR PANEL -->
+
+<section class="panel">
+
+<h2>Virtual Motors</h2>
+
+<div class="row">
+  <span>Motor 1</span>
+  <span class="value" id="m1">0%</span>
+</div>
+
+<div class="bar">
+  <div class="fill" id="m1bar"></div>
+</div>
+
+
+<div class="row">
+  <span>Motor 2</span>
+  <span class="value" id="m2">0%</span>
+</div>
+
+<div class="bar">
+  <div class="fill" id="m2bar"></div>
+</div>
+
+
+<div class="row">
+  <span>Motor 3</span>
+  <span class="value" id="m3">0%</span>
+</div>
+
+<div class="bar">
+  <div class="fill" id="m3bar"></div>
+</div>
+
+
+<div class="row">
+  <span>Motor 4</span>
+  <span class="value" id="m4">0%</span>
+</div>
+
+<div class="bar">
+  <div class="fill" id="m4bar"></div>
+</div>
+
+</section>
+
+</main>
+
+
+<script>
+
+let armed = false;
+
+let state = {
+  roll: 0,
+  pitch: 0,
+  yaw: 0,
+  throttle: 0
+};
+
+
+/* -----------------------
+   JOYSTICK SYSTEM
+----------------------- */
+
+function createJoystick(stickID, knobID) {
+
+  const stick = document.getElementById(stickID);
+  const knob = document.getElementById(knobID);
+
+  let active = false;
+
+  let x = 0;
+  let y = 0;
+
+  function move(clientX, clientY) {
+
+    const rect = stick.getBoundingClientRect();
+
+    let dx = clientX - (rect.left + rect.width / 2);
+    let dy = clientY - (rect.top + rect.height / 2);
+
+    const max = 39;
+
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > max) {
+
+      dx = dx / distance * max;
+      dy = dy / distance * max;
+
+    }
+
+    x = dx / max;
+    y = dy / max;
+
+    knob.style.transform =
+      `translate(${dx}px, ${dy}px)`;
+
+  }
+
+
+  function reset() {
+
+    active = false;
+
+    x = 0;
+    y = 0;
+
+    knob.style.transform =
+      "translate(0px, 0px)";
+
+  }
+
+
+  stick.addEventListener("pointerdown", function(e) {
+
+    active = true;
+
+    stick.setPointerCapture(e.pointerId);
+
+    move(e.clientX, e.clientY);
+
+  });
+
+
+  stick.addEventListener("pointermove", function(e) {
+
+    if (active) {
+
+      move(e.clientX, e.clientY);
+
+    }
+
+  });
+
+
+  stick.addEventListener("pointerup", reset);
+
+  stick.addEventListener("pointercancel", reset);
+
+
+  return {
+    getX: () => x,
+    getY: () => y
+  };
+
+}
+
+
+const left =
+  createJoystick("leftStick", "leftKnob");
+
+const right =
+  createJoystick("rightStick", "rightKnob");
+
+
+/* -----------------------
+   ARM BUTTON
+----------------------- */
+
+document.getElementById("armButton").onclick = function() {
+
+  armed = !armed;
+
+  if (armed) {
+
+    this.textContent = "DISARM SIMULATION";
+
+    this.classList.add("armed");
+
+    document.getElementById("status")
+      .textContent = "SIMULATION ARMED";
+
+  } else {
+
+    this.textContent = "ARM SIMULATION";
+
+    this.classList.remove("armed");
+
+    document.getElementById("status")
+      .textContent = "SIMULATION ONLY";
+
+  }
+
+};
+
+
+/* -----------------------
+   RESET
+----------------------- */
+
+document.getElementById("resetButton").onclick = function() {
+
+  armed = false;
+
+  state.roll = 0;
+  state.pitch = 0;
+  state.yaw = 0;
+  state.throttle = 0;
+
+  document.getElementById("armButton")
+    .textContent = "ARM SIMULATION";
+
+  document.getElementById("armButton")
+    .classList.remove("armed");
+
+  document.getElementById("status")
+    .textContent = "SIMULATION ONLY";
+
+};
+
+
+/* -----------------------
+   MAIN SIMULATION
+----------------------- */
+
+function clamp(value, min, max) {
+
+  return Math.max(min, Math.min(max, value));
+
+}
+
+
+function update() {
+
+  /*
+    Left joystick:
+    Up/down = throttle
+    Left/right = yaw
+
+    Right joystick:
+    Up/down = pitch
+    Left/right = roll
+  */
+
+  state.throttle =
+    (1 - left.getY()) / 2 * 100;
+
+  state.yaw =
+    left.getX() * 45;
+
+  state.pitch =
+    -right.getY() * 35;
+
+  state.roll =
+    right.getX() * 35;
+
+
+  if (!armed) {
+
+    state.throttle = 0;
+
+  }
+
+
+  /* Virtual motor mixing */
+
+  let motors = [
+
+    state.throttle +
+    state.pitch +
+    state.roll -
+    state.yaw,
+
+    state.throttle +
+    state.pitch -
+    state.roll +
+    state.yaw,
+
+    state.throttle -
+    state.pitch -
+    state.roll -
+    state.yaw,
+
+    state.throttle -
+    state.pitch +
+    state.roll +
+    state.yaw
+
+  ];
+
+
+  motors =
+    motors.map(function(value) {
+
+      return clamp(value, 0, 100);
+
+    });
+
+
+  /* Display IMU */
+
+  document.getElementById("roll")
+    .textContent =
+    state.roll.toFixed(1) + "°";
+
+  document.getElementById("pitch")
+    .textContent =
+    state.pitch.toFixed(1) + "°";
+
+  document.getElementById("yaw")
+    .textContent =
+    state.yaw.toFixed(1) + "°";
+
+  document.getElementById("throttle")
+    .textContent =
+    Math.round(state.throttle) + "%";
+
+
+  /* Bars */
+
+  document.getElementById("rollBar")
+    .style.width =
+    (50 + state.roll / 2) + "%";
+
+  document.getElementById("pitchBar")
+    .style.width =
+    (50 + state.pitch / 2) + "%";
+
+  document.getElementById("yawBar")
+    .style.width =
+    (50 + state.yaw / 2) + "%";
+
+  document.getElementById("throttleBar")
+    .style.width =
+    state.throttle + "%";
+
+
+  /* Motor displays */
+
+  for (let i = 0; i < 4; i++) {
+
+    document.getElementById("m" + (i + 1))
+      .textContent =
+      Math.round(motors[i]) + "%";
+
+    document.getElementById("m" + (i + 1) + "bar")
+      .style.width =
+      motors[i] + "%";
+
+  }
+
+
+  /* Tilt virtual drone */
+
+  document.getElementById("drone")
+    .style.transform =
+    `rotateX(${state.pitch}deg)
+     rotateZ(${-state.roll}deg)
+     rotateY(${state.yaw / 3}deg)`;
+
+
+  requestAnimationFrame(update);
+
+}
+
+
+update();
+
+
+/* -----------------------
+   KEYBOARD CONTROLS
+----------------------- */
+
+const keys = {};
+
+window.addEventListener("keydown", function(e) {
+
+  keys[e.key.toLowerCase()] = true;
+
+  if (e.key === " ") {
+
+    e.preventDefault();
+
+    document.getElementById("armButton").click();
+
+  }
+
+});
+
+
+window.addEventListener("keyup", function(e) {
+
+  keys[e.key.toLowerCase()] = false;
+
+});
+
+
+setInterval(function() {
+
+  /*
+    Keyboard controls only work
+    when the joysticks aren't being touched.
+  */
+
+  if (keys["a"]) {
+
+    state.yaw = -45;
+
+  }
+
+  if (keys["d"]) {
+
+    state.yaw = 45;
+
+  }
+
+}, 50);
+
+</script>
+
+</body>
+</html>
